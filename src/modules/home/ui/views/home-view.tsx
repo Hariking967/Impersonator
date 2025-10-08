@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { z } from "zod";
 import { Input } from "@/components/ui/input";
@@ -69,11 +69,23 @@ export default function HomeView() {
     }
   }
 
-  const formSchema = z.object({
-    authorName: z.string().min(1, "Author name is required"),
-    song: z.string().min(1, "Song is required"),
-    description: z.string().min(1, "Description is required"),
-  });
+  // Refs to dynamically adjust main padding so the fixed bottom form
+  // doesn't overlap content (works for varying form heights / responsive).
+  const mainRef = useRef<HTMLElement | null>(null);
+  const formRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function updatePadding() {
+      if (!mainRef.current || !formRef.current) return;
+      const height = formRef.current.offsetHeight;
+      mainRef.current.style.paddingBottom = `${height}px`;
+    }
+
+    // Initial set and whenever the window resizes.
+    updatePadding();
+    window.addEventListener("resize", updatePadding);
+    return () => window.removeEventListener("resize", updatePadding);
+  }, [loading, result]);
 
   // onSubmit for the HTML form: validate with zod then call handleSubmit
   const onSubmit = async (e: React.FormEvent) => {
@@ -91,8 +103,7 @@ export default function HomeView() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <main className="p-8 pb-56 md:pb-36">
-        {/* add bottom padding so fixed form doesn't cover content */}
+      <main ref={mainRef} className="p-8">
         <h1 className="text-3xl font-bold text-white">Impersonator</h1>
         <p className="mt-2 text-sm text-neutral-300">
           Enter an author name, a song title, and a short description to create
@@ -112,7 +123,7 @@ export default function HomeView() {
       </main>
 
       {/* Bottom-fixed form: always visible at the bottom of the viewport */}
-      <div className="fixed bottom-0 left-0 right-0 z-50">
+      <div ref={formRef} className="fixed bottom-0 left-0 right-0 z-50">
         <Card className="shadow-xl bg-neutral-900/95 border-t border-neutral-800">
           <CardContent className="py-4 md:py-6">
             {/* ensure consistent height */}
