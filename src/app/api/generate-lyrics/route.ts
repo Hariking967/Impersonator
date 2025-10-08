@@ -26,16 +26,25 @@ export async function POST(req: Request) {
       title: song,
       artist: authorName,
       optimizeQuery: true,
-    } as any;
+    };
 
     let originalLyrics = "";
     try {
-      // getLyrics may return a promise; await it
-      const g = await getLyrics(geniusOptions as any);
-      // library returns object or string depending on usage; try to extract text
-      if (typeof g === "string") originalLyrics = g;
-      else if (g?.lyrics) originalLyrics = g.lyrics;
-      else originalLyrics = JSON.stringify(g).slice(0, 4000);
+      // getLyrics may return string or object; treat result as unknown and narrow safely
+      const g: unknown = await getLyrics(geniusOptions);
+      if (typeof g === "string") {
+        originalLyrics = g;
+      } else if (
+        typeof g === "object" &&
+        g !== null &&
+        "lyrics" in g &&
+        typeof (g as any).lyrics === "string"
+      ) {
+        // small cast to access property when shape is uncertain
+        originalLyrics = (g as { lyrics: string }).lyrics;
+      } else {
+        originalLyrics = JSON.stringify(g).slice(0, 4000);
+      }
     } catch (err) {
       // If Genius fails, continue with empty originalLyrics
       console.warn("Genius fetch failed:", err);
@@ -64,7 +73,7 @@ export async function POST(req: Request) {
       baseURL: "https://openrouter.ai/api/v1",
       apiKey: geminiKey,
       defaultHeaders,
-    } as any);
+    });
 
     const model = process.env.GEMINI_MODEL || "google/gemini-2.5-flash";
     const completion = await client.chat.completions.create({
@@ -85,29 +94,47 @@ export async function POST(req: Request) {
         },
       ],
       max_tokens: 800,
-    } as any);
+    });
 
     const message = completion.choices?.[0]?.message;
 
     // Extract text safely
     let lyrics = "";
-    if (!message) lyrics = "";
-    else if (typeof message === "string") lyrics = message;
-    else if (message?.content) {
-      const c: any = message.content;
-      if (typeof c === "string") lyrics = c;
-      else if (Array.isArray(c))
+    if (!message) {
+      lyrics = "";
+    } else if (typeof message === "string") {
+      lyrics = message;
+    } else if (message?.content) {
+      const c: unknown = (message as { content?: unknown }).content;
+      if (typeof c === "string") {
+        lyrics = c;
+      } else if (Array.isArray(c)) {
         lyrics = c
-          .map((it: any) => (typeof it === "string" ? it : it?.text ?? ""))
+          .map((it) => {
+            if (typeof it === "string") return it;
+            if (
+              typeof it === "object" &&
+              it !== null &&
+              "text" in it &&
+              typeof (it as any).text === "string"
+            )
+              return (it as { text: string }).text;
+            return "";
+          })
           .join("");
-      else lyrics = String(c);
-    } else lyrics = JSON.stringify(message);
+      } else {
+        lyrics = String(c);
+      }
+    } else {
+      lyrics = JSON.stringify(message);
+    }
 
     return NextResponse.json({ lyrics });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error(err);
+    const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
-      { error: err?.message ?? "Server error" },
+      { error: message ?? "Server error" },
       { status: 500 }
     );
   }

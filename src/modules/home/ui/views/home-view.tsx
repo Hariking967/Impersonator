@@ -13,8 +13,6 @@ const formSchema = z.object({
   description: z.string().min(1, "Description is required"),
 });
 
-type FormValues = z.infer<typeof formSchema>;
-
 export default function HomeView() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -54,11 +52,13 @@ export default function HomeView() {
         }
         const data = await res.json();
         setResult(data?.lyrics ?? "");
-      } catch (err: any) {
-        if (err.name === "AbortError") {
+      } catch (err: unknown) {
+        if (err instanceof DOMException && err.name === "AbortError") {
           setError("Request timed out. Try again.");
-        } else {
+        } else if (err instanceof Error) {
           throw err;
+        } else {
+          throw new Error(String(err));
         }
       }
     } catch (err) {
@@ -91,7 +91,8 @@ export default function HomeView() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <main className="p-8">
+      <main className="p-8 pb-56 md:pb-36">
+        {/* add bottom padding so fixed form doesn't cover content */}
         <h1 className="text-3xl font-bold text-white">Impersonator</h1>
         <p className="mt-2 text-sm text-neutral-300">
           Enter an author name, a song title, and a short description to create
@@ -113,7 +114,8 @@ export default function HomeView() {
       {/* Bottom-fixed form: always visible at the bottom of the viewport */}
       <div className="fixed bottom-0 left-0 right-0 z-50">
         <Card className="shadow-xl bg-neutral-900/95 border-t border-neutral-800">
-          <CardContent>
+          <CardContent className="py-4 md:py-6">
+            {/* ensure consistent height */}
             <form
               onSubmit={onSubmit}
               className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end"
