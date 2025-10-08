@@ -38,7 +38,7 @@ export async function POST(req: Request) {
         typeof g === "object" &&
         g !== null &&
         "lyrics" in g &&
-        typeof (g as any).lyrics === "string"
+        typeof (g as Record<string, unknown>).lyrics === "string"
       ) {
         // small cast to access property when shape is uncertain
         originalLyrics = (g as { lyrics: string }).lyrics;
@@ -116,9 +116,10 @@ export async function POST(req: Request) {
               typeof it === "object" &&
               it !== null &&
               "text" in it &&
-              typeof (it as any).text === "string"
-            )
+              typeof (it as Record<string, unknown>).text === "string"
+            ) {
               return (it as { text: string }).text;
+            }
             return "";
           })
           .join("");
